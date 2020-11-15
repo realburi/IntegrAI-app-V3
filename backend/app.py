@@ -6,7 +6,7 @@ from flask import Flask
 
 from ui import UI
 
-PORT = 9000
+PORT = 7000
 app = Flask(__name__)
 app.register_blueprint(UI, url_prefix='/')
 
