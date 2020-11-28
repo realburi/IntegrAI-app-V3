@@ -3,28 +3,31 @@
 from flask import Blueprint, render_template, request, jsonify, send_file, send_from_directory, current_app
 from urllib3 import PoolManager
 from config import Config_Object
-from utils import DB_Handler, Device_Handler, ImageBankHandler
-from utils import Detector_Handler
-from parts import Status_Manager as UI_SManager
-from parts import Detecor_Handler as UI_DTHandler
-from parts import Recognizor_Handler as UI_RNHandler
-from store_models import detect_dict, recogize_dict
+from utils import DB_Handler, Device_Handler, Object_Handler, ImageBankHandler
+from utils import Detector_Handler, Status_Manager, Region_Repairer
+from store_models import DETECT_DICT, RECOGNIZE_DICT
 import os
 
 ROUTER = Config_Object['router']
 DB_PATH = Config_Object['db_path']
 IMG_PATH = Config_Object['img_path']
+IoU_THRESH = Config_Object['iou_thresh']
 # templates, static -d react iin js uud orj irne,    UI_PoolManager-> device, AI engine ruu access hiihiin tuld
 IMG_Handler = ImageBankHandler(IMG_PATH)
 #detect_config, db_handler, img_handler,
-DET_Handler = Detector_Handler(detect_dict, UI_DTHandler, IMG_Handler)
-
 
 UI = Blueprint('UI', __name__, template_folder='./templates', static_folder='./static')
 UI_PoolManager = PoolManager()
 UI_DBHandler = DB_Handler(os.path.join(DB_PATH, 'master.db'))
-UI_DHandler = Device_Handler(IMG_PATH, UI_DBHandler, ROUTER, taskque=DET_Handler)
 
+UI_DTHandler = DB_Handler(os.path.join(DB_PATH, 'detected.db'))
+UI_RNHandler = DB_Handler(os.path.join(DB_PATH, 'recognized.db'))
+UI_SManager = Status_Manager(DB_PATH, IMG_PATH, 128000)
+RR = Region_Repairer(UI_DTHandler, iou_thresh=IoU_THRESH, update_master=True)
+DET_Handler = Detector_Handler(DETECT_DICT, det_handler=UI_DTHandler, master_handler=UI_DBHandler, img_handler=IMG_Handler, region_repairer=RR)
+
+UI_DHandler = Device_Handler(IMG_PATH, UI_DBHandler, ROUTER, taskque=DET_Handler)
+UI_OHandler = Object_Handler(UI_DBHandler)
 
 @UI.route('/')
 def index():
@@ -90,7 +93,7 @@ def devices_function():
 def device_function(deviceID):
     if request.method == 'GET':
         # get data
-        data = UI_DHandler.get_device(deviceID)
+        data = UI_DHandler.get_device(deviceID, det_handler=UI_DTHandler)
         return jsonify(data)
     elif request == 'PUT':
         data = request.json
@@ -105,12 +108,12 @@ def device_function(deviceID):
 @UI.route('/captures/<deviceID>')
 def captures(deviceID):
     # send latest device image
-    print("GET IMAGE:", deviceID, type(deviceID))
+    print("deviceID:{} | GET IMAGE".format(deviceID))
     if deviceID != 'undefined':
         imgfile = IMG_Handler.get_latest(deviceID)#os.path.join(os.path.join(IMG_PATH, deviceID+'.jpg'))
-        return send_file(imgfile)
-    else:
-        return 'Ok'
+        if imgfile is not None:
+            return send_file(imgfile)
+    return 'OK'
 
 
 @UI.route('/capture', methods=['POST'])
@@ -120,7 +123,7 @@ def capture():
     # Take Photo
     # Detect
     UI_DHandler.access_device(deviceID)
-    data = UI_DHandler.get_device(deviceID, master=False, handler=DET_Handler)
+    data = UI_DHandler.get_device(deviceID, det_handler=UI_DTHandler)
     return jsonify(data)
 #--------------------
 
@@ -133,9 +136,15 @@ def objects_function():
         datas = UI_DBHandler.get('objects', columns=['objectID', 'class'])
         return jsonify(datas)
     else:
-        data = request.json
-        # save object
-        return 'OK'
+        datas = request.json
+        print("POST OBJECT:", datas)
+        object_class = datas['class']
+        deviceID = datas['deviceID']
+        if len(datas["position"]) > 0:
+            UI_OHandler.register_object(object_class, deviceID, datas)
+        # save object -> objectID:None -> have to register
+        objects = UI_DBHandler.get('objects', {'deviceID':deviceID})
+        return 'Ok'
 
 @UI.route('/objects/<objectID>', methods=['GET', 'PUT', 'DELETE'])
 def object_function(objectID):

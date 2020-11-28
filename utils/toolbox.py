@@ -32,7 +32,7 @@ class DB_Handler(object):
         cursor.execute(sql)
         self.conn.commit()
         cursor.close()
-        return 'Ok'
+        return 'OK'
 
     def select(self, table_name:str, conditions:dict, columns:list = []):
         selected = "*" if len(columns) == 0 else ",".join(columns)
@@ -54,7 +54,7 @@ class DB_Handler(object):
         return self.session(sql)
 
     def insert(self, table_name:str, data:dict):
-        sql = "INSERT INTO " + str(table_name) + " "
+        sql = "INSERT OR IGNORE INTO " + str(table_name) + " "
         arguments, contents = "", ""
         for column, value in data.items():
             arguments += str(column)+", "
@@ -63,15 +63,15 @@ class DB_Handler(object):
         return self.commit(sql)
 
     def update(self, table_name:str, data:dict, conditions:dict):
-        sql += "UPDATE " + str(table_name) + " SET"
+        sql = "UPDATE " + str(table_name) + " SET "
         for column, value in data.items():
             sql += " " + str(column) + "=" + "'{}', ".format(value)
-        sql = sql[:-1] + " "
+        sql = sql[:-2] + " "
         if len(conditions) > 0:
             sql += " WHERE "
         for column, value in conditions.items():
             sql += " " + str(column) + "=" + "'{}', ".format(value)
-        sql = sql[:-1] + ";"
+        sql = sql[:-2] + ";"
         return self.commit(sql)
 
     def delete(self, table_name:str, conditions:dict):
@@ -83,11 +83,14 @@ class DB_Handler(object):
         sql = sql[:-1] + ";"
         return self.commit(sql)
 
+    def run_custom_sql(self, sql):
+        return self.session(sql)
+
     def add(self, table_name:str, key:str, datas:list):
         output = {'inserted':0, 'updated':0}
         for data in datas:
             KEY = data[key]
-            count = int(self.count(table_name), {key:KEY}[0][0])
+            count = int(self.count(table_name, {key:KEY})[0][0])
             if count == 0:
                 self.insert(table_name, data)
                 output['inserted'] += 1
@@ -144,7 +147,7 @@ class Status_Manager(object):
                 # skip if it is symbolic link
                 if not os.path.islink(fp):
                     total_size += os.path.getsize(fp)
-        return total_size
+        return round(total_size, 3)
 
     def get_db_size(self):
         db_files = glob(os.path.join(self.db_folder, '*'))
@@ -246,11 +249,14 @@ class Device_Handler(object):
         data['url'] = 'http://' + data['deviceID'] + '.local' + '/capture'
         return data
 
-    def get_device(self, deviceID:str, master:bool=True, handler:DB_Handler=None):
+    def get_device(self, deviceID:str, det_handler:DB_Handler=None):
         data = self.handler.get('devices', {'deviceID':deviceID})
         if len(data) == 1:
             data = data[0]
-            data['positions'] = self.get_objects(deviceID, master=master, handler=handler)
+            if det_handler is not None:
+                data['positions'] = self.get_candidates(deviceID, det_handler=det_handler)
+            else:
+                data['positions'] = self.get_objects(deviceID, det_handler=det_handler)
         return data
 
     def register_device(self, data:dict):
@@ -278,11 +284,33 @@ class Device_Handler(object):
         del self.threads[deviceID]
         # DELETE self.connectors[deviceID]
 
-    def get_objects(self, deviceID:str, master:bool=True, handler:DB_Handler=None):
+    def get_candidates(self, deviceID:str, det_handler:DB_Handler):
+        sql = "SELECT class, result FROM log WHERE id=(SELECT MAX(id) FROM log WHERE deviceID='{0}') AND deviceID='{0}';".format(deviceID)
+        results = det_handler.run_custom_sql(sql)
+        datas = []
+        if len(results) > 0:
+            object_class, result = results[0]
+            result = json.loads(result)
+            for object in result:
+                datas.append({
+                    'objectID':object['objectID'],
+                    'name':object['name'],
+                    'class':object_class,
+                    'x1':object['x1'],
+                    'y1':object['y1'],
+                    'x2':object['x2'],
+                    'y2':object['y2'],
+                    'registered':object['registered'],
+                })
+        return datas
+
+
+    def get_objects(self, deviceID:str, handler:DB_Handler=None):
         objects = self.handler.get('objects', {'deviceID':deviceID})
         datas = []
-        if master:
-            for obj in objects:
+        if len(objects) == 0:
+            return datas
+        for obj in objects:
                 objectID = obj['objectID']
                 name = obj['name']
                 object_class = obj['class']
@@ -294,22 +322,21 @@ class Device_Handler(object):
                         'x1':obj['position']['x1'],
                         'y1':obj['position']['y1'],
                         'x2':obj['position']['x2'],
-                        'y2':obj['position']['y2']
+                        'y2':obj['position']['y2'],
+                        'registered':True,
                     })
                 elif isinstance(obj['position'], list):
                     for position in obj['position']:
                         datas.append({
                             'objectID':objectID,
-                            'name':name,
+                            'name':position['name'],
                             'class':object_class,
                             'x1':position['x1'],
                             'y1':position['y1'],
                             'x2':position['x2'],
-                            'y2':position['y2']
+                            'y2':position['y2'],
+                            'registered':True,
                         })
-        else:
-            #TODO: get latest regions and match them
-            regions = []
         return datas
 
     def access_device(self, deviceID:str):
@@ -322,7 +349,7 @@ class Device_Handler(object):
 
     def detector_hook(self, deviceID:str, device_class:int):
         #engine hook
-        print("HOOKED!")
+        print("deviceID:{} | HOOKED!".format(deviceID))
         if self.taskque is not None:
             data = {'deviceID':deviceID, 'class':device_class}
             self.taskque.put(data)
@@ -372,7 +399,7 @@ class Device_Connector(object):
     def access(self):
         if self.debug:
             print("ACCESS TO {}".format(self.deviceID))
-            self.url = 'http://localhost:5432/'+str(self.deviceID)
+            self.url = 'http://localhost:5001/capture/'+str(self.deviceID)
         if int(self.device_class) == 0:  # class = 1 is button device
             print("URL:", self.url)
             try:
@@ -383,6 +410,7 @@ class Device_Connector(object):
                 elif r.status_code != 200:
                     self.active = False
             except requests.exceptions.ConnectionError as e:
+                print("CANNOT CONNECTED:", deviceID)
                 self.active = False
 
     def access_related_devices(self):
@@ -406,8 +434,11 @@ class ImageBankHandler(object):
 
     def get_latest(self, deviceID:str):
         device_imgfiles = self.get_all(deviceID)
-        latest_file = max(device_imgfiles, key=os.path.getctime)
-        return latest_file
+        if len(device_imgfiles) > 0:
+            latest_file = max(device_imgfiles, key=os.path.getctime)
+            return latest_file
+        else:
+            return None
 
     def check(self):
         files = glob(os.path.join(self.folder_path, '*'))
@@ -422,11 +453,46 @@ class ImageBankHandler(object):
         #TODO: Zip? and upload images
         return NotImplementedError
 
+#----- Object Handler Object -------
+class Object_Handler(object):
+    def __init__(self, handler):
+        self.handler = handler
+
+    def register_object(self, object_class:int, deviceID:str, datas:list):
+        object_datas = []
+        if object_class == 0: # 1device to 1object to many positions
+            datas = datas['position']
+            objectID = deviceID+"1"
+            object_datas.append({
+                "objectID":objectID,
+                "deviceID":deviceID,
+                "class":object_class,
+                "position":json.dumps([{"x1":r["x1"], "y1":r["y1"], "x2":r["x2"], "y2":r["y2"], "name":r["name"]} for r in datas])
+                })
+        elif object_class != 0:# 1device to many objects to 1position
+            count = self.handler.count("objects", conditions={"deviceID":deviceID})[0][0]
+            print(len(datas), datas)
+            objectID = deviceID+str(count+1) if datas['objectID'] is None else datas['objectID']
+            object_datas.append({
+                "objectID":objectID,
+                "deviceID":deviceID,
+                "class":object_class,
+                "object_content":json.dumps(datas["objectContent"]),
+                "position":json.dumps({"x1":datas["position"]["x1"], "y1":datas["position"]["y1"], "x2":datas["position"]["x2"], "y2":datas["position"]["y2"]}),
+                "name":datas["name"]
+            })
+        print("L:", len(datas))
+        self.handler.add("objects", "objectID", object_datas)
+        print("OBJECT REGISTERED!")
+
+
 
 if __name__ == '__main__':
     from pprint import pprint
     dh = Device_Handler('./imagebank', DB_Handler('../db/master.db'), '')
-    data = dh.get_device('162')
+    dt = DB_Handler(os.path.join('../db', 'detected.db'))
+    #data = dh.get_device('162')
+    datas = dh.get_candidates('162', dt)
     #ih = ImageBankHandler('/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/backend/imagebank')
     #data = ih.get_latest('161')
-    pprint(data)
+    pprint(datas)
