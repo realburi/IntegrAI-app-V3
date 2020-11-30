@@ -262,12 +262,17 @@ class Device_Handler(object):
     def register_device(self, data:dict):
         data = self.convert(data)
         deviceID = data['deviceID']
-        self.handler.add('devices', 'deviceID', data)
-        # ADD self.connectors[deviceID]
-        period = data['device_content']['frequency'] if 'frequency' in data['device_content'] else 0
-        related_devcies = data['device_content']['related_devcies'] if 'related_devcies' in data['device_content'] else []
-        self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devcies)
-        self.run_device_thread(deviceID, data['class'], data['url'])
+        devices = self.handler.get('devices', columns=['deviceID'])
+        if deviceID not in devices:
+            device_content = data['device_content'] if 'device_content' in data else {'frequency':0, 'quality':640, 'related_devices':[]}
+            data['device_content'] = json.dumps(device_content)
+            self.handler.add('devices', 'deviceID', [data])
+            # ADD self.connectors[deviceID]
+            period = device_content['frequency'] if 'frequency' in device_content else 0
+            related_devcies = device_content['related_devcies'] if 'related_devcies' in device_content else []
+            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devcies)
+            self.run_device_thread(deviceID, data['class'], data['url'])
+        return self.handler.get('devices', columns=['deviceID', 'class'])
 
     def set_device(self, data:dict):
         data = self.convert(data)

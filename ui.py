@@ -85,9 +85,11 @@ def devices_function():
         return jsonify(datas)
     else:
         data = request.json
+        data = data['data']
         # save device
-        UI_DHandler.register_device(data)
-        return 'OK'
+        print("deviceID: {} | New Device Registered".format(data['deviceID']))
+        devices = UI_DHandler.register_device(data)
+        return jsonify(devices)
 
 @UI.route('/devices/<deviceID>', methods=['GET', 'PUT', 'DELETE'])
 def device_function(deviceID):
