@@ -249,14 +249,24 @@ class Device_Handler(object):
         data['url'] = 'http://' + data['deviceID'] + '.local' + '/capture'
         return data
 
+    def get_devices(self):
+        devices = self.handler.get('devices', columns=['deviceID', 'class'])
+        datas = []
+        for device in devices:
+            n_obj = self.handler.count('objects', {'deviceID':device['deviceID']})[0][0]
+            device['num_objects'] = n_obj
+        return devices
+
     def get_device(self, deviceID:str, det_handler:DB_Handler=None):
         data = self.handler.get('devices', {'deviceID':deviceID})
         if len(data) == 1:
             data = data[0]
             if det_handler is not None:
-                data['positions'] = self.get_candidates(deviceID, det_handler=det_handler)
+                candidates = self.get_candidates(deviceID, det_handler=det_handler)
+                data['positions'] = candidates
             else:
-                data['positions'] = self.get_objects(deviceID, det_handler=det_handler)
+                objects = self.get_objects(deviceID, det_handler=det_handler)
+                data['positions'] = objects
         return data
 
     def register_device(self, data:dict):
@@ -289,24 +299,29 @@ class Device_Handler(object):
         del self.threads[deviceID]
         # DELETE self.connectors[deviceID]
 
+    def count_content_objects(self, candidates:list):
+        return len([c for c in candidates if c['registered']])
+
     def get_candidates(self, deviceID:str, det_handler:DB_Handler):
         sql = "SELECT class, result FROM log WHERE id=(SELECT MAX(id) FROM log WHERE deviceID='{0}') AND deviceID='{0}';".format(deviceID)
         results = det_handler.run_custom_sql(sql)
+        register_objectIDs = [o['objectID'] for o in self.handler.get('objects', {'deviceID':deviceID})]
         datas = []
         if len(results) > 0:
             object_class, result = results[0]
             result = json.loads(result)
             for object in result:
-                datas.append({
-                    'objectID':object['objectID'],
-                    'name':object['name'],
-                    'class':object_class,
-                    'x1':object['x1'],
-                    'y1':object['y1'],
-                    'x2':object['x2'],
-                    'y2':object['y2'],
-                    'registered':object['registered'],
-                })
+                if object['objectID'] in register_objectIDs or object['objectID'] is None:
+                    datas.append({
+                        'objectID':object['objectID'],
+                        'name':object['name'],
+                        'class':object_class,
+                        'x1':object['x1'],
+                        'y1':object['y1'],
+                        'x2':object['x2'],
+                        'y2':object['y2'],
+                        'registered':object['registered'],
+                    })
         return datas
 
 
@@ -489,6 +504,24 @@ class Object_Handler(object):
         print("L:", len(datas))
         self.handler.add("objects", "objectID", object_datas)
         print("OBJECT REGISTERED!")
+
+    def update_objects(self, object_class:int, deviceID:str, contents:list):
+        """
+            INPUT:
+                object_class: Object Class
+                deviceID: deviceID
+                content:[{'class':0, 'name':name, 'objectID':objectID or None, 'registered':True, 'x1':x1, 'y1':y1, 'x2':x2, 'y2':y2}, ...]
+        """
+        if object_class == 0:
+            objectID = contents[0]['objectID'] if len(contents) > 0 else deviceID+'1'
+            objectID = deviceID+str(1) if objectID is None else objectID
+            positions = []
+            for r in contents:
+                positions.append({"x1":r["x1"], "y1":r["y1"], "x2":r["x2"], "y2":r["y2"], "name":r["name"]})
+            object_datas = {"objectID":objectID, "position":json.dumps(positions)}
+            self.handler.add("objects", "objectID", [object_datas])
+            print("deviceID: {} | Uploaded".format(deviceID))
+        return 'OK'
 
 
 

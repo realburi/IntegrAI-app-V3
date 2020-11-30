@@ -46,7 +46,10 @@ class Region_Repairer(object):
         if len(objects) == 0:
             return []
         if object_class == 0: # Paper
-            return [[o['x1'], o['y1'], o['x2'], o['y2']] for o in objects[0]['position']]
+            if objects[0]['position'] == '[]' or objects[0]['position'] == []:
+                return []
+            else:
+                return [[o['x1'], o['y1'], o['x2'], o['y2']] for o in objects[0]['position']]
         else: # Meters...
             return [[o['position']['x1'], o['position']['y1'], o['position']['x2'], o['position']['y2']] for o in objects]
 
@@ -73,15 +76,16 @@ class Region_Repairer(object):
         registered_objects_position = self.get_positions(object_class, registered_objects)
         independent_indexes = []
 
+
         transformed_result = []
-        if object_class == 0 and len(registered_objects) > 0:
+        if object_class == 0 and len(registered_objects_position) > 0:
             distances = [r[0]**2 + r[1]**2 for r in registered_objects_position]
             index = np.argmin(distances)
             X = registered_objects_position[index][0]
             Y = registered_objects_position[index][1]
             transformed_result = self.transform_positions((X, Y), result)
 
-        if len(registered_objects) == 0:
+        if len(registered_objects_position) == 0:
             independent_indexes = [i for i, r in enumerate(result)]
 
         for i, rpos in enumerate(registered_objects_position):

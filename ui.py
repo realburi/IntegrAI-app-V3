@@ -81,7 +81,8 @@ def devices_function():
     if request.method == 'GET':
         # get all devices
         #datas = [{'deviceID':'161', 'class':1}, {'deviceID':'162', 'class':0}]
-        datas = UI_DBHandler.get('devices', columns=['deviceID', 'class'])
+        #datas = UI_DBHandler.get('devices', columns=['deviceID', 'class'])
+        datas = UI_DHandler.get_devices()
         return jsonify(datas)
     else:
         data = request.json
@@ -146,7 +147,17 @@ def objects_function():
             UI_OHandler.register_object(object_class, deviceID, datas)
         # save object -> objectID:None -> have to register
         objects = UI_DBHandler.get('objects', {'deviceID':deviceID})
-        return 'Ok'
+        return 'OK'
+
+@UI.route('/objects/recognition', methods=['POST'])
+def objects_recognition():
+    datas = request.json
+    print("POST RECOGNITION:", datas)
+    deviceID = datas['deviceID']
+    object_class = datas['class']
+    UI_OHandler.update_objects(object_class, deviceID, datas['position'])
+    # TODO: Run recognizor engine
+    return 'OK'
 
 @UI.route('/objects/<objectID>', methods=['GET', 'PUT', 'DELETE'])
 def object_function(objectID):
