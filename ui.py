@@ -146,7 +146,7 @@ def objects_function():
         if len(datas["position"]) > 0:
             UI_OHandler.register_object(object_class, deviceID, datas)
         # save object -> objectID:None -> have to register
-        objects = UI_DBHandler.get('objects', {'deviceID':deviceID})
+        #objects = UI_DBHandler.get('objects', {'deviceID':deviceID})
         return 'OK'
 
 @UI.route('/objects/recognition', methods=['POST'])
@@ -165,6 +165,7 @@ def object_function(objectID):
         # get data
         #data = {'objectID':'1611', 'class':1}
         data = UI_DBHandler.get('objects', {'objectID':objectID})
+        data = data[0] if len(data) > 0 else []
         return jsonify(data)
     elif request == 'PUT':
         data = request.json

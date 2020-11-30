@@ -3,7 +3,7 @@ Config_Object = {
     'db_path':'/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/db',
     'img_path':'/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/backend/imagebank',
     'class':[0, 1],
-    'iou_thresh':0.1,
+    'iou_thresh':0.3,
     'max_storage':145, #MB
     'detector':{
         0:'CRAFT', # device class: detector name

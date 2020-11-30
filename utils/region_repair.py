@@ -94,8 +94,9 @@ class Region_Repairer(object):
             name = registered_objects[i]['name'] if object_class !=0 else registered_objects[0]['position'][i]['name']
             if len(matched_indexes) > 0:
                 matched_regions = [result[j] for j in matched_indexes]
+                overlapped_regions = [result[j] for j in overlapped_indexes]
                 #matched_regions.append(rpos)
-                new_x1, new_y1, new_x2, new_y2 = self.repair(matched_regions)
+                new_x1, new_y1, new_x2, new_y2 = self.repair(rpos, matched_regions, overlapped_regions)
                 candidates.append({
                     'x1':new_x1,
                     'y1':new_y1,
@@ -135,7 +136,7 @@ class Region_Repairer(object):
         return candidates, object_class
 
 
-    def repair(self, regions):
+    def get_included_box(self, regions):
         """
             regions: [[x1, y1, x2, y2, ...], [x1, y1, x2, y2, ...], ...]
         """
@@ -147,8 +148,30 @@ class Region_Repairer(object):
         x2, y2 = max(coordinates[2]), max(coordinates[3])
         return x1, y1, x2, y2
 
+
+    def repair(self, registered_region, matched_regions, overlapped_regions):
+        """
+            registered_region:[x1, y1, x2, y2]
+            other regions: [[x1, y1, x2, y2, ...], [x1, y1, x2, y2, ...], ...]
+        """
+        w = abs(registered_region[2]-registered_region[0])
+        h = abs(registered_region[3]-registered_region[1])
+        aspect = w / h
+        group1_box = self.get_included_box(matched_regions)
+        #group2_box = self.get_included_box(matched_regions+[registered_region]) if len(matched_regions) > 0 else [0, 0, 10000, 1]
+        group3_box = self.get_included_box(matched_regions+overlapped_regions)
+        #group4_box = self.get_included_box(matched_regions+overlapped_regions+[registered_region]) if len(matched_regions) > 0 else [0, 0, 10000, 1]
+        #group5_box = self.get_included_box(overlapped_regions+[registered_region])
+        groups = [group1_box, group3_box]
+        aspect_diffs = [abs((g[2]-g[0])/(g[3]-g[1]) - aspect) for g in groups]
+        print("ASPECTS:", aspect_diffs)
+        index = np.argmin(aspect_diffs)
+        return groups[index]
+
+
     def match(self, region, regions):
         """
+        INPUTS:
             region: [x1, y1, x2, y2, ...],
             regions:[[x1, y1, x2, y2, ...], [x1, y1, x2, y2, ...], ...]
         """
@@ -157,6 +180,7 @@ class Region_Repairer(object):
         scores = [culc_iou(region, r) for r in regions]
         matched_indexes = [i for i, s in enumerate(scores) if s > self.iou_thresh]
         overlapped_indexes = [i for i, s in enumerate(scores) if self.iou_thresh >= s > 0]
+        print("SCORE:", scores)
         return matched_indexes, overlapped_indexes
 
     def update(self, candidates, object_class, master_handler):
