@@ -140,9 +140,9 @@ class Recognizor_Handler(object):
                 valueID = self.get_valueid()
                 code = None
                 res = [{"name":d['name'], "value":o} for o, d in zip(outputs, datas)]
-                result = {"objectID":datas[0]['objectID'], "valueID":valueID, "result":json.dumps(res), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}
+                result = {"objectID":datas[0]['objectID'], "class":object_class, "valueID":valueID, "result":json.dumps(res), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}
                 results.append(result)
-            else:
+            elif object_class is not None:
                 for output, data in zip(outputs, datas):
                     valueID = self.get_valueid()
                     code = None
