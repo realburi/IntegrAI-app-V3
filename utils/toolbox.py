@@ -53,6 +53,16 @@ class DB_Handler(object):
         sql = sql[:-1] + ";"
         return self.session(sql)
 
+    def must_insert(self, table_name:str, data:dict):
+        sql = "INSERT INTO " + str(table_name) + " "
+        arguments, contents = "", ""
+        for column, value in data.items():
+            arguments += str(column)+", "
+            contents += "'{}', ".format(value)
+        sql += "(" + arguments[:-2] + ")" + " VALUES " + "(" + contents[:-2] + ");"
+        print(sql)
+        return self.commit(sql)
+
     def insert(self, table_name:str, data:dict):
         sql = "INSERT OR IGNORE INTO " + str(table_name) + " "
         arguments, contents = "", ""
@@ -292,6 +302,15 @@ class Device_Handler(object):
         related_devcies = data['device_content']['related_devcies'] if 'related_devcies' in data['device_content'] else []
         self.connector[deviceID].period = period
         self.connector[deviceID].related_devcies = related_devcies
+        #self.update_related_devices(data['deviceID'], related_devcies)
+
+    def update_related_devices(self, deviceID, related_devcies):
+        device_contents = [self.handler.get('devices', conditions={'deviceID':devID}, columns=['device_content']) for devID in related_devices]
+        # 1. get new related devices
+        # 2. add deviceID->new related_device & add related_device->deviceID
+        # 3. get ejecting devices
+        # 4. delete deviceID->ejecting device & ejecting device->deviceID
+
 
     def delete_device(self, deviceID:str):
         self.handler.delete('devices', {'deviceID':deviceID})
@@ -475,8 +494,27 @@ class ImageBankHandler(object):
 
 #----- Object Handler Object -------
 class Object_Handler(object):
-    def __init__(self, handler):
-        self.handler = handler
+    def __init__(self, master_handler):
+        self.master_handler = master_handler
+
+    def get_object(self, objectID:str, det_handler:DB_Handler):
+        data = self.master_handler.get('objects', {'objectID':objectID})
+        if len(data) == 0:
+            return []
+        else:
+            data = data[0]
+            object_class = data['class']
+            if object_class != 0:
+                return data
+            else: # Paper Master Coordinate TO Detected Coordinate
+                deviceID = data['deviceID']
+                sql = "SELECT result FROM log WHERE id=(SELECT MAX(id) FROM log WHERE deviceID='{0}') AND deviceID='{0}';".format(deviceID)
+                results = det_handler.run_custom_sql(sql)[0][0]
+                results = json.loads(results)
+                regions = [{"name":r['name'], "x1":r['x1'], "y1":r['y1'], "x2":r['x2'], "y2":r['y2']} for r in results if r['objectID'] is not None and r['registered'] ]
+                data['position'] = regions
+                return data
+
 
     def register_object(self, object_class:int, deviceID:str, datas:list):
         object_datas = []
@@ -502,11 +540,12 @@ class Object_Handler(object):
                 "name":datas["name"]
             })
         print("L:", len(datas))
-        self.handler.add("objects", "objectID", object_datas)
+        self.master_handler.add("objects", "objectID", object_datas)
         print("OBJECT REGISTERED!")
 
     def update_objects(self, object_class:int, deviceID:str, contents:list):
         """
+            Register and Update? Master Coordinate -> Only for UI Upload Button
             INPUT:
                 object_class: Object Class
                 deviceID: deviceID
@@ -519,7 +558,7 @@ class Object_Handler(object):
             for r in contents:
                 positions.append({"x1":r["x1"], "y1":r["y1"], "x2":r["x2"], "y2":r["y2"], "name":r["name"]})
             object_datas = {"objectID":objectID, "position":json.dumps(positions)}
-            self.handler.add("objects", "objectID", [object_datas])
+            self.master_handler.add("objects", "objectID", [object_datas])
             print("deviceID: {} | Uploaded".format(deviceID))
         return 'OK'
 

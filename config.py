@@ -3,13 +3,13 @@ Config_Object = {
     'db_path':'/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/db',
     'img_path':'/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/backend/imagebank',
     'class':[0, 1],
-    'iou_thresh':0.3,
+    'iou_thresh':0.2,
     'max_storage':145, #MB
-    'detector':{
-        0:'CRAFT', # device class: detector name
+    'detector':{    # device class: detector name
+        0:'CRAFT',
         1:None,
     },
-    'recognizor':{
+    'recognizor':{ # object class: object name
         0:'NoneType', # paper
         1:'Img2Seq_model', # digital meter
     }

@@ -13,7 +13,7 @@ def recognizor1_model():
     else:
         return tools[0]
 
-def recognizor1_process(imgs, model, config=recognizor1_config, device='cpu'):
+def recognizor1_process(imgs, model, device='cpu', config=recognizor1_config):
     results = []
     for img in imgs:
         if type(img).__name__ == 'ndarray':

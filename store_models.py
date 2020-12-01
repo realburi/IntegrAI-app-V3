@@ -22,10 +22,12 @@ recognizor2 = Img2Seq_model(voc=get_digits(), maxlen=recognizor2_config['maxlen'
 recognizor2.load(recognizor2_config['weights'])
 print("recognizor2 OK!")
 
+#device_class to model
 DETECT_DICT = {
     0:{'model':detector1, 'process':detector1_process}
 }
 
+#object_class to model
 RECOGNIZE_DICT = {
     0:{'model':recognizor1, 'process':recognizor1_process},
     1:{'model':recognizor2, 'process':recognizor2_process}

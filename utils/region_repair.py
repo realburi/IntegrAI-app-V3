@@ -192,9 +192,10 @@ class Region_Repairer(object):
             objectID = candidates[0]['objectID']
             position = [{'x1':c['x1'], 'y1':c['y1'], 'x2':c['x2'], 'y2':c['y2'], 'name':c['name']} for c in candidates if c['objectID'] is not None and c['registered']]
             register_objects = [{'objectID':objectID, 'position':json.dumps(position)}]
+            # Do not update master coordinate of  class 0 objects ?
         else:
             register_objects = [{'objectID':c['objectID'], 'position':json.dumps({'x1':c['x1'], 'y1':c['y1'], 'x2':c['x2'], 'y2':c['y2'], 'name':c['name']})} for c in candidates]
-        master_handler.add('objects', 'objectID', register_objects)
+            master_handler.add('objects', 'objectID', register_objects)
 
     def __call__(self, deviceID, result, master_handler):
         """

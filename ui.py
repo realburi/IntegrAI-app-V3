@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, request, jsonify, send_file, send_
 from urllib3 import PoolManager
 from config import Config_Object
 from utils import DB_Handler, Device_Handler, Object_Handler, ImageBankHandler
-from utils import Detector_Handler, Status_Manager, Region_Repairer
+from utils import Detector_Handler, Status_Manager, Region_Repairer, Recognizor_Handler
 from store_models import DETECT_DICT, RECOGNIZE_DICT
 import os
 
@@ -24,10 +24,12 @@ UI_DTHandler = DB_Handler(os.path.join(DB_PATH, 'detected.db'))
 UI_RNHandler = DB_Handler(os.path.join(DB_PATH, 'recognized.db'))
 UI_SManager = Status_Manager(DB_PATH, IMG_PATH, 128000)
 RR = Region_Repairer(UI_DTHandler, iou_thresh=IoU_THRESH, update_master=True)
-DET_Handler = Detector_Handler(DETECT_DICT, det_handler=UI_DTHandler, master_handler=UI_DBHandler, img_handler=IMG_Handler, region_repairer=RR)
+REC_Handler = Recognizor_Handler(RECOGNIZE_DICT, rec_handler=UI_RNHandler, dev_handler=None, det_handler=UI_DTHandler, img_handler=IMG_Handler)
+DET_Handler = Detector_Handler(DETECT_DICT, det_handler=UI_DTHandler, master_handler=UI_DBHandler, img_handler=IMG_Handler, hooked_taskque=REC_Handler, region_repairer=RR)
 
 UI_DHandler = Device_Handler(IMG_PATH, UI_DBHandler, ROUTER, taskque=DET_Handler)
 UI_OHandler = Object_Handler(UI_DBHandler)
+REC_Handler.dev_handler = UI_DHandler
 
 @UI.route('/')
 def index():
@@ -136,7 +138,7 @@ def objects_function():
     if request.method == 'GET':
         # get all objects
         #datas = [{'objectID':'1611', 'class':1}, {'objectID':'1621', 'class':0}]
-        datas = UI_DBHandler.get('objects', columns=['objectID', 'class'])
+        datas = UI_DBHandler.get('objects', columns=['objectID', 'class', 'name'])
         return jsonify(datas)
     else:
         datas = request.json
@@ -164,8 +166,9 @@ def object_function(objectID):
     if request.method == 'GET':
         # get data
         #data = {'objectID':'1611', 'class':1}
-        data = UI_DBHandler.get('objects', {'objectID':objectID})
-        data = data[0] if len(data) > 0 else []
+        #data = UI_DBHandler.get('objects', {'objectID':objectID})
+        #data = data[0] if len(data) > 0 else []
+        data = UI_OHandler.get_object(objectID, UI_DTHandler)
         return jsonify(data)
     elif request == 'PUT':
         data = request.json
