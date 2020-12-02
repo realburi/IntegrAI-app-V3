@@ -88,6 +88,7 @@ class Recognizor_Handler(object):
         self.taskque = queue.Queue()
         self.working = False
         self.format = "%Y-%m-%d %H:%M:%S"
+        self.coded_groups = [] # [{'deviceID1': count, 'deviceID2':count, 'code':---}, {'deviceID3': 0, 'deviceID4':count, 'code':---}, ...]
 
     def put(self, data:dict): # data = {'deviceID':, 'class':object_class}
         self.taskque.put(data)
@@ -102,6 +103,9 @@ class Recognizor_Handler(object):
     def get_valueid(self):
         return ''.join(np.random.choice(list('0123456789')) for _ in range(7))
 
+    def get_group_code(self):
+        return ''.join(np.random.choice([chr(c) for c in range(65, 65+26)]) for _ in range(7))
+
     def img2regions(self, deviceID, imgfile):
         img = np.array(Image.open(imgfile))
         H, W = img.shape[:2]
@@ -115,9 +119,39 @@ class Recognizor_Handler(object):
                 datas.append({'objectID':object['objectID'], 'name':object['name'], 'imgfile':imgfile})
         return img_regions, datas
 
-    def get_code(self):
-        # TODO: get related devices groups then generate code
-        return
+    def get_code(self, deviceID):
+        related_groups = self.dev_handler.related_groups
+        index = [i for i, g in enumerate(related_groups) if deviceID in g][0]
+        group = related_groups[index] # [deviceID1, deviceID2, ...]
+        # 1. if deviceID has related_devices
+        if len(group) < 2: # self group
+            return None
+        # 2. there are related_devices, check if the related group has a code
+        indexes = [i for i, g in enumerate(self.coded_groups) if deviceID in g]
+        has_coded_group = True if len(indexes) > 0 else False
+        if has_coded_group:
+            index = indexes[0]
+            coded_group = self.coded_groups[index]
+            is_used = True if sum([1 for devID in group if coded_group[devID] == 0]) == len(group) else False
+            if is_used:
+                # 4. count group code, if code is used for all related_devices then initialize code
+                del self.coded_groups[index]
+                coded_group = {ID:1 for ID in group}
+                coded_group['code'] = self.get_group_code()
+                coded_group[deviceID] = 0
+                self.coded_groups.append(coded_group)
+            else:
+                coded_group[deviceID] = 0
+            code = coded_group['code']
+        else:
+        # 3. there are no code, generate code and put code into buffer
+            coded_group = {ID:1 for ID in group}
+            coded_group['code'] = self.get_group_code()
+            self.coded_groups.append(coded_group)
+            coded_group[deviceID] = 0
+
+            code = coded_group['code']
+        return code
 
     def __call__(self):
         """
@@ -136,19 +170,17 @@ class Recognizor_Handler(object):
             regions, datas = self.img2regions(deviceID, imgfile)
             outputs = self.recognize_config[object_class]['process'](regions, self.recognize_config[object_class]['model'], device=self.device)
             _imgfile = imgfile.split('/')[-1]
+            code = self.get_code(deviceID)
             if object_class == 0: #
                 valueID = self.get_valueid()
-                code = None
                 res = [{"name":d['name'], "value":o} for o, d in zip(outputs, datas)]
                 result = {"objectID":datas[0]['objectID'], "class":object_class, "valueID":valueID, "result":json.dumps(res), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}
                 results.append(result)
             elif object_class is not None:
                 for output, data in zip(outputs, datas):
                     valueID = self.get_valueid()
-                    code = None
                     result = {"objectID":data['objectID'], "class":object_class, "valueID":valueID, "result":json.dumps({"value": output}), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}
                     results.append(result)
-            print(results)
             for result in results:
                 self.rec_handler.must_insert('log', result)
             print("deviceID:{} | Objects Recognized ".format(deviceID))
@@ -158,3 +190,25 @@ class Recognizor_Handler(object):
         else:
             self.working = False
             return
+
+if __name__ == '__main__':
+    from pprint import pprint
+    from imagebank_handler import ImageBankHandler
+    from db_handler import DB_Handler
+    from device_handler import Device_Handler
+    import time
+    db_handler = DB_Handler('../db/master.db')
+    det_handler = DB_Handler('../db/detected.db')
+    rec_handler = DB_Handler('../db/recognized.db')
+    img_handler = ImageBankHandler('./imagebank')
+
+    dev_handler = Device_Handler('./imagebank', db_handler, '192.169.1.0')
+    rh = Recognizor_Handler({0:None, 1:None}, rec_handler, det_handler, dev_handler,  img_handler)
+    rh.put({'deviceID':'162', 'class':0})
+    time.sleep(0.5)
+    rh.put({'deviceID':'163', 'class':1})
+    time.sleep(1)
+    rh.put({'deviceID':'162', 'class':0})
+    time.sleep(0.5)
+    rh.put({'deviceID':'163', 'class':1})
+    #rh.put({'deviceID':'164', 'class':1})

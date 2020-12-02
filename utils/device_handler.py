@@ -17,16 +17,24 @@ class Device_Handler(object):
         self.threads = {}
         self.taskque = taskque
         self.stop_all_threads = False
+        self.related_groups = self.get_related_groups()
         self.load_connectors()
 
     def load_connectors(self):
         datas = self.handler.get('devices')
+        # Load connectors
         for data in datas:
             deviceID = data['deviceID']
             period = data['device_content']['frequency'] if 'frequency' in data['device_content'] else 0
-            related_devices = data['device_content']['related_devices'] if 'related_devices' in data['device_content'] else []
-            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devices)
+            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, [])
             self.run_device_thread(deviceID, data['class'], data['url'])
+
+        # Connect relations
+        for data in datas:
+            deviceID = data['deviceID']
+            related_devices = data['device_content']['related_devices'] if 'related_devices' in data['device_content'] else []
+            related_connectors = [self.connectors[devID] for devID in related_devices]
+            self.connectors[deviceID].related_devices = related_connectors
 
     def convert(self, data:dict):
         #url = self.router + data['deviceID']
@@ -75,6 +83,7 @@ class Device_Handler(object):
             related_devices = device_content['related_devices'] if 'related_devices' in device_content else []
             self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devices)
             self.run_device_thread(deviceID, data['class'], data['url'])
+            self.related_groups = self.get_related_groups()
         return self.handler.get('devices', columns=['deviceID', 'class'])
 
     def set_device(self, deviceID:str, data:dict):
@@ -87,12 +96,21 @@ class Device_Handler(object):
         _data['device_content'] = json.dumps(data['device_content'])
         self.update_related_devices(deviceID, data['device_content']['related_devices'])
         self.handler.add('devices', 'deviceID', [_data])
+        self.related_groups = self.get_related_groups()
         # SET self.connectors
         period = data['device_content']['frequency'] if 'frequency' in data['device_content'] else 0
         related_devices = data['device_content']['related_devices'] if 'related_devices' in data['device_content'] else []
         #refresh connectors
-        self.connectors[deviceID].period = period
-        self.connectors[deviceID].related_devices = related_devices
+        related_connectors = [self.connectors[devID] for devID in related_devices]
+        if self.connectors[deviceID].period == 0 and period != 0:
+        # set new connector
+            data = self.handler.get('devices', conditions={'deviceID':deviceID})[0]
+            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_connectors)
+            self.run_device_thread(deviceID, data['class'], data['url'])
+        else:
+        # set connector
+            self.connectors[deviceID].period = period
+            self.connectors[deviceID].related_devices = related_connectors
 
     def update_related_devices(self, deviceID, new_related_devices):
         """
@@ -127,6 +145,48 @@ class Device_Handler(object):
         self.handler.add('devices', 'deviceID', updating_datas)
         print("deviceID:{} | SET Related Devices: ADD:{}, EJECT:{}".format(deviceID, str(adding_related_devices), str(ejecting_related_devices)))
 
+    def get_related_groups(self):
+        """
+            groups: [[deviceID1, deviceID2, ...], [deviceID6, deviceID8, ...], ...]
+        """
+        datas = self.handler.get('devices', columns=['deviceID', 'class', 'device_content'])
+        blacklist = []
+        groups = []
+        for data in datas:
+            included = False
+            deviceID, related_devices = data['deviceID'], data['device_content']['related_devices']
+            device_class = data['class']
+            if device_class != 0:
+                blacklist.append(deviceID)
+            # Check Included Group
+            indexes = [i for i, group in enumerate(groups) if deviceID in group]
+            included = any(indexes)
+            if included:
+                for index in indexes:
+                    groups[index].extend(deviceID)
+            else:
+                index_buf = []
+                for devID in related_devices:
+                    # Check Related Group
+                    indexes = [i for i, group in enumerate(groups) if deviceID in group]
+                    index_buf.extend(indexes)
+                if index_buf != []:
+                    # Join Related Group
+                    for index in index_buf:
+                        if deviceID not in groups[index]:
+                            groups[index].extend(deviceID)
+                else:
+                    # Create New Group
+                    group = [deviceID]
+                    group.extend(related_devices)
+                    groups.append(group)
+
+        #clear blacklist
+        for group in groups:
+            for b in blacklist:
+                if b in group:
+                    group.remove(b)
+        return groups
 
     def delete_device(self, deviceID:str):
         # 1. clear all related_devices
@@ -200,17 +260,21 @@ class Device_Handler(object):
     def access_device(self, deviceID:str):
         deviceID = str(deviceID)
         if str(deviceID) in self.connectors:
-            print("OK!")
             self.connectors[deviceID].process()
-            print("OK! HOOK")
+            print("deviceID:{} | Detecting Hooked".format(deviceID))
             self.detector_hook(deviceID, self.connectors[deviceID].device_class)
+            for conn in self.connectors[deviceID].related_devices: #-> bottleneck?
+                devID, device_class = conn.deviceID, conn.device_class
+                print("deviceID:{} | Detecting Hooked (Relation)".format(devID))
+                self.detector_hook(devID, device_class)
 
     def detector_hook(self, deviceID:str, device_class:int):
         #engine hook
         print("deviceID:{} | HOOKED!".format(deviceID))
         if self.taskque is not None:
-            data = {'deviceID':deviceID, 'class':device_class}
-            self.taskque.put(data)
+            if device_class == 0:
+                data = {'deviceID':deviceID, 'class':device_class}
+                self.taskque.put(data)
             #self.celery.deley(data)
 
     def device_thread(self, connector):
@@ -268,7 +332,7 @@ class Device_Connector(object):
                 elif r.status_code != 200:
                     self.active = False
             except requests.exceptions.ConnectionError as e:
-                print("CANNOT CONNECTED:", deviceID)
+                print("CANNOT CONNECTED:", self.deviceID)
                 self.active = False
 
     def access_related_devices(self):
@@ -283,7 +347,9 @@ if __name__ == '__main__':
     from pprint import pprint
     db_handler = DB_Handler('../db/master.db')
     dh = Device_Handler('./imagebank', db_handler, '192.169.1.0')
+    print(1, dh.related_groups)
     new_data = {'device_content':{"frequency":0, "quality":0, "related_devices":['162', '163']}}
     #new_data = {'device_content':{"frequency":0, "quality":0, "related_devices":[]}}
     dh.set_device('161', new_data)
+    print(2, dh.get_related_groups())
     db_handler.disconnect()

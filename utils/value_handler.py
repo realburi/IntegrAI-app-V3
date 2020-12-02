@@ -48,6 +48,18 @@ class Value_Handler(object):
         else:
             return
 
+    def set_value(self, valueID, data):
+        """
+            INPUT:
+                valueID: valueID
+                data: {}
+        """
+        return
+
+    def delete_value(self, valueID):
+        self.rec_handler.delete('log', {'valueID':valueID})
+        print("valueID:{} | Deleted".format(valueID))
+
 if __name__ == '__main__':
     from pprint import pprint
     rec_handler = DB_Handler('../../db/recognized.db')

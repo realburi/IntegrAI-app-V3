@@ -187,9 +187,17 @@ def send_values():
     date1 = data['date1']
     date2 = data['date2']
     datas = UI_VHandler.get_values(objectID, date1, date2)
-
     #datas = [{'date':'2020-11-05 23:34:13', 'result':{'value':1234}}, {'date':'2020-11-05 23:35:16', 'result':{'value':1287}}]
     return jsonify(datas)
+
+@UI.route('/value/<valueID>', methods=['PUT', 'DELETE'])
+def value_function(valueID):
+    if request.method == 'PUT':
+        data = request.json
+        return 'OK?' # or send datas
+    else:
+        UI_VHandler.delete_value(valueID)
+        return 'OK'
 
 #--------------------
 
