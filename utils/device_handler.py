@@ -24,8 +24,8 @@ class Device_Handler(object):
         for data in datas:
             deviceID = data['deviceID']
             period = data['device_content']['frequency'] if 'frequency' in data['device_content'] else 0
-            related_devcies = data['device_content']['related_devcies'] if 'related_devcies' in data['device_content'] else []
-            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devcies)
+            related_devices = data['device_content']['related_devices'] if 'related_devices' in data['device_content'] else []
+            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devices)
             self.run_device_thread(deviceID, data['class'], data['url'])
 
     def convert(self, data:dict):
@@ -54,6 +54,15 @@ class Device_Handler(object):
         return data
 
     def register_device(self, data:dict):
+        """
+            INPUT:
+                data: {"deviceID":deviceID, "device_content":{"frequency":--, "quality":--, "related_devices":--}}
+
+            OUTPUT:
+                [
+                    {"deviceID":deviceID, "class":device_class}, ...
+                ]
+        """
         data = self.convert(data)
         deviceID = data['deviceID']
         devices = self.handler.get('devices', columns=['deviceID'])
@@ -63,30 +72,66 @@ class Device_Handler(object):
             self.handler.add('devices', 'deviceID', [data])
             # ADD self.connectors[deviceID]
             period = device_content['frequency'] if 'frequency' in device_content else 0
-            related_devcies = device_content['related_devcies'] if 'related_devcies' in device_content else []
-            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devcies)
+            related_devices = device_content['related_devices'] if 'related_devices' in device_content else []
+            self.connectors[deviceID] = Device_Connector(deviceID, data['class'], data['url'], self.img_folder, period, related_devices)
             self.run_device_thread(deviceID, data['class'], data['url'])
         return self.handler.get('devices', columns=['deviceID', 'class'])
 
-    def set_device(self, data:dict):
-        data = self.convert(data)
-        self.handler.add('devices', 'deviceID', data)
+    def set_device(self, deviceID:str, data:dict):
+        """
+            INPUT:
+                data: {"device_content":{"frequency": ---, "quality":---, "related_devices":[deviceID1, deviceID2, ... ]}}
+        """
+        _data = data.copy()
+        _data['deviceID'] = deviceID
+        _data['device_content'] = json.dumps(data['device_content'])
+        self.update_related_devices(deviceID, data['device_content']['related_devices'])
+        self.handler.add('devices', 'deviceID', [_data])
         # SET self.connectors
         period = data['device_content']['frequency'] if 'frequency' in data['device_content'] else 0
-        related_devcies = data['device_content']['related_devcies'] if 'related_devcies' in data['device_content'] else []
-        self.connector[deviceID].period = period
-        self.connector[deviceID].related_devcies = related_devcies
-        #self.update_related_devices(data['deviceID'], related_devcies)
+        related_devices = data['device_content']['related_devices'] if 'related_devices' in data['device_content'] else []
+        #refresh connectors
+        self.connectors[deviceID].period = period
+        self.connectors[deviceID].related_devices = related_devices
 
-    def update_related_devices(self, deviceID, related_devcies):
-        device_contents = [self.handler.get('devices', conditions={'deviceID':devID}, columns=['device_content']) for devID in related_devices]
-        # 1. get new related devices
-        # 2. add deviceID->new related_device & add related_device->deviceID
-        # 3. get ejecting devices
-        # 4. delete deviceID->ejecting device & ejecting device->deviceID
+    def update_related_devices(self, deviceID, new_related_devices):
+        """
+            INPUT:
+                deviceID:deviceID
+                new_related_devices:[deviceID1, deviceID2, ...]
+        """
+        current_device_content = self.handler.get('devices', conditions={'deviceID':deviceID}, columns=['device_content'])[0]
+        current_related_devices = current_device_content['device_content']['related_devices']
+        current_period = current_device_content['device_content']['frequency']
+
+        adding_related_devices = [devID for devID in new_related_devices if devID not in current_related_devices]
+        ejecting_related_devices = [devID for devID in current_related_devices if devID not in new_related_devices]
+        # 1. add this deviceID -> new related_devices' device_content
+        updating_datas = []
+        adding_related_devices_content = [self.handler.get('devices', conditions={'deviceID':devID}, columns=['device_content']) for devID in adding_related_devices]
+        for devID, device_content in zip(adding_related_devices, adding_related_devices_content):
+            content = device_content[0]['device_content']
+        # 2. set frequency -> 0 ( frequency==this deviceID's frequency)
+            content['frequency'] = 0
+            if deviceID not in content['related_devices']:
+               content['related_devices'].append(deviceID)
+            updating_datas.append({'deviceID':devID, 'device_content':json.dumps(content)})
+
+        # 3. eject this deviceID -> ejecting related_devices
+        ejecting_related_devices_content = [self.handler.get('devices', conditions={'deviceID':devID}, columns=['device_content']) for devID in ejecting_related_devices]
+        for devID, device_content in zip(ejecting_related_devices, ejecting_related_devices_content):
+             content = device_content[0]['device_content']
+             if deviceID in content['related_devices']:
+                 content['related_devices'].remove(deviceID)
+             updating_datas.append({'deviceID':devID, 'device_content':json.dumps(content)})
+        self.handler.add('devices', 'deviceID', updating_datas)
+        print("deviceID:{} | SET Related Devices: ADD:{}, EJECT:{}".format(deviceID, str(adding_related_devices), str(ejecting_related_devices)))
 
 
     def delete_device(self, deviceID:str):
+        # 1. clear all related_devices
+        self.update_related_devices(deviceID, [])
+        # 2. delete devices
         self.handler.delete('devices', {'deviceID':deviceID})
         del self.connectors[deviceID]
         del self.threads[deviceID]
@@ -189,11 +234,11 @@ class Device_Handler(object):
         self.stop_all_threads = True
 
 class Device_Connector(object):
-    def __init__(self, deviceID:str, device_class:int, url:str, imgfolder:str, period:int, related_devcies:list = [], timeout=1., debug=True):
+    def __init__(self, deviceID:str, device_class:int, url:str, imgfolder:str, period:int, related_devices:list = [], timeout=1., debug=True):
         self.deviceID = deviceID
         self.device_class = device_class
         self.period = period
-        self.related_devcies = related_devcies
+        self.related_devices = related_devices
         self.active = False
         self.imgfolder = imgfolder
         self.imgpath = os.path.join(imgfolder, deviceID+'.jpg')
@@ -227,9 +272,18 @@ class Device_Connector(object):
                 self.active = False
 
     def access_related_devices(self):
-        for related in self.related_devcies:
+        for related in self.related_devices:
             related.access()
 
     def process(self):
         self.access()
         self.access_related_devices()
+
+if __name__ == '__main__':
+    from pprint import pprint
+    db_handler = DB_Handler('../db/master.db')
+    dh = Device_Handler('./imagebank', db_handler, '192.169.1.0')
+    new_data = {'device_content':{"frequency":0, "quality":0, "related_devices":['162', '163']}}
+    #new_data = {'device_content':{"frequency":0, "quality":0, "related_devices":[]}}
+    dh.set_device('161', new_data)
+    db_handler.disconnect()

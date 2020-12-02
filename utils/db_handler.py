@@ -23,13 +23,15 @@ class DB_Handler(object):
         cursor.close()
         return 'OK'
 
-    def select(self, table_name:str, conditions:dict, columns:list = []):
+    def select(self, table_name:str, conditions:dict, columns:list = [], limit:int=None):
         selected = "*" if len(columns) == 0 else ",".join(columns)
         sql = "SELECT " + selected + " FROM {} ".format(table_name)
         if len(conditions) > 0:
             sql += "WHERE"
         for column, value in conditions.items():
             sql += " " + str(column) + "=" + "{},".format(value)
+        if limit is not None:
+            sql = sql[:-1] + " LIMIT {} ".format(limit)
         sql = sql[:-1] + ";"
         return self.session(sql)
 
@@ -49,7 +51,6 @@ class DB_Handler(object):
             arguments += str(column)+", "
             contents += "'{}', ".format(value)
         sql += "(" + arguments[:-2] + ")" + " VALUES " + "(" + contents[:-2] + ");"
-        print(sql)
         return self.commit(sql)
 
     def insert(self, table_name:str, data:dict):
@@ -102,8 +103,8 @@ class DB_Handler(object):
         sql = "PRAGMA table_info({});".format(table_name)
         return [infos[1] for infos in self.session(sql)]
 
-    def get(self, table_name:str, conditions:dict = {}, columns:list = []):
-        rows = self.select(table_name, conditions, columns)
+    def get(self, table_name:str, conditions:dict = {}, columns:list = [], limit:int = None):
+        rows = self.select(table_name, conditions, columns, limit)
         cols = self.columns(table_name) if len(columns) == 0 else columns
         datas = []
         for row in rows:

@@ -3,7 +3,7 @@
 from flask import Blueprint, render_template, request, jsonify, send_file, send_from_directory, current_app
 from urllib3 import PoolManager
 from config import Config_Object
-from utils import DB_Handler, Device_Handler, Object_Handler, ImageBankHandler
+from utils import DB_Handler, Device_Handler, Object_Handler, Value_Handler, ImageBankHandler
 from utils import Detector_Handler, Status_Manager, Region_Repairer, Recognizor_Handler
 from store_models import DETECT_DICT, RECOGNIZE_DICT
 import os
@@ -29,6 +29,7 @@ DET_Handler = Detector_Handler(DETECT_DICT, det_handler=UI_DTHandler, master_han
 
 UI_DHandler = Device_Handler(IMG_PATH, UI_DBHandler, ROUTER, taskque=DET_Handler)
 UI_OHandler = Object_Handler(UI_DBHandler)
+UI_VHandler = Value_Handler(UI_RNHandler)
 REC_Handler.dev_handler = UI_DHandler
 
 @UI.route('/')
@@ -181,10 +182,13 @@ def object_function(objectID):
 @UI.route('/value', methods=['POST'])
 def send_values():
     data = request.json
+    print(data)
     objectID = data['objectID']
     date1 = data['date1']
     date2 = data['date2']
-    datas = [{'date':'2020-11-05 23:34:13', 'result':{'value':1234}}, {'date':'2020-11-05 23:35:16', 'result':{'value':1287}}]
+    datas = UI_VHandler.get_values(objectID, date1, date2)
+
+    #datas = [{'date':'2020-11-05 23:34:13', 'result':{'value':1234}}, {'date':'2020-11-05 23:35:16', 'result':{'value':1287}}]
     return jsonify(datas)
 
 #--------------------
