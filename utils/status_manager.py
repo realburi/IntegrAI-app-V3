@@ -4,14 +4,16 @@ from glob import glob
 import subprocess
 import zipfile
 import psutil
+import shutil
 import io
 import os
 
 class Status_Manager(object):
-    def __init__(self, db_folder, img_folder, max_storage, unit='MB'):
+    def __init__(self, db_folder, img_folder, max_db_storage, max_img_storage, unit='MB'):
         self.db_folder = db_folder
         self.img_folder = img_folder
-        self.MAX_STORAGE = max_storage
+        self.MAX_DB_STORAGE = max_db_storage
+        self.MAX_IMG_STORAGE = max_img_storage
         self.unit = unit
 
     def culc_unit(self, size):
@@ -43,6 +45,7 @@ class Status_Manager(object):
             output[_db_file] = {'size':self.culc_unit(size)}
             total += size
         output['total'] = self.culc_unit(total)
+        output['max_db_storage'] = self.MAX_DB_STORAGE
         return output
 
     def get_img_size(self):
@@ -53,6 +56,7 @@ class Status_Manager(object):
             total += os.path.getsize(imgfile)
         output['total'] = self.culc_unit(total)
         output['n_file'] = len(imgfiles)
+        output['max_img_storage'] = self.MAX_IMG_STORAGE
         return output
 
     def get_cpu_temperature(self):
@@ -68,33 +72,57 @@ class Status_Manager(object):
         cpu_usage = psutil.cpu_percent()
         gpu_usage = self.get_gpu_info()
         cpu_temperature = self.get_cpu_temperature()
-        output = {'db':db_status, 'img':img_status, 'cpu':cpu_usage, 'gpu':round(float(gpu_usage), 1), 'memory_unit':self.unit, 'cpu_temperature':cpu_temperature}
+        output = {
+        'db':db_status,
+        'img':img_status,
+        'cpu':cpu_usage,
+        'gpu':round(float(gpu_usage), 1),
+        'memory_unit':self.unit,
+        'cpu_temperature':cpu_temperature
+        }
         return output
 
-    def upload_db(self, filename):
-        os.chmod(filename, 0o644)
-        return
+    def upload_master(self, master_file):
+        with zipfile.ZipFile(master_file, "r") as zip:
+            files = zip.namelist()
+            filename = files[0]
+            zip.extractall(".")
+            os.chmod(filename, 0o644)
+            filepath = os.path.join(self.db_folder, filename)
+            print(filepath)
+            shutil.move(filename, filepath)
+            print("Extructed", filename)
+        return {'updated':True}
+
+    def dump_db(self, db_name):
+        db_file = os.path.join(self.db_folder, db_name)
+        filename = db_name + ".zip"
+        with zipfile.ZipFile(filename, 'w') as zip:
+            zipped_name = db_file.split('/')[-1]
+            zip.write(db_file, zipped_name)
+        print("DB {} dumped".format(db_name))
+        return filename
 
     def compress_imgs(self):
+        """
+            not memory file
+        """
         imgfiles = glob(os.path.join(self.img_folder, '*'))
-        memory_file = io.BytesIO()
-        with zipfile.ZipFile(memory_file, 'w') as zf:
-            for filename in imgfiles:
-                file_handler = open(filename, 'rb')
-                content = file_handler.read()
-                file_handler.close()
-                _filename = filename.split('/')[-1]
-                data = zipfile.ZipInfo(_filename)
-                data.compress_type = zipfile.ZIP_DEFLATED
-                zf.writestr(data, content)
-        memory_file.seek(0)
-        return memory_file
+        filename = "images.zip"
+        print("IMGs:", len(imgfiles))
+        with zipfile.ZipFile(filename, 'w') as zip:
+            for imgfile in imgfiles:
+                zip.write(imgfile)
+        print('All files zipped successfully!')
+        return filename
 
     def empty_db(self):
         pass
 
     def empty_imgs(self):
-        pass
+        for filepath in glob(os.path.join(self.img_folder, '*')):
+            os.unlink(filepath)
+        print("Clear ImageBank")
 
     # not for Jetson NANO
     def get_gpu_info(self, nvidia_smi_path='nvidia-smi', keys=['utilization.gpu'], no_units=True):
@@ -106,3 +134,9 @@ class Status_Manager(object):
         output = [ { k: v for k, v in zip(keys, line.split(', ')) } for line in lines ]
         output = output[0][keys[0]]
         return output
+
+if __name__ == '__main__':
+    sm = Status_Manager('../db', './imagebank', 145, 30)
+    #sm.compress_imgs()
+    res = sm.dump_db('master.db')
+    print(res)

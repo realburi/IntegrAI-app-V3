@@ -5,8 +5,12 @@ import json
 
 class DB_Handler(object):
     def __init__(self, db_path):
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         #self.cursor = self.conn.cursor()
+
+    def reconnect(self):
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
 
     def session(self, sql):
         cursor = self.conn.cursor()

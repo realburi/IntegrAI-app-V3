@@ -4,7 +4,8 @@ Config_Object = {
     'img_path':'/home/galaxygliese/Desktop/integrAI/TECH/AppV3/developing/backend/imagebank',
     'class':[0, 1],
     'iou_thresh':0.2,
-    'max_storage':145, #MB
+    'max_db_storage':50, #MB
+    'max_img_storage':32, #GB
     'detector':{    # device class: detector name
         0:'CRAFT',
         1:None,

@@ -22,7 +22,7 @@ UI_DBHandler = DB_Handler(os.path.join(DB_PATH, 'master.db'))
 
 UI_DTHandler = DB_Handler(os.path.join(DB_PATH, 'detected.db'))
 UI_RNHandler = DB_Handler(os.path.join(DB_PATH, 'recognized.db'))
-UI_SManager = Status_Manager(DB_PATH, IMG_PATH, 128000)
+UI_SManager = Status_Manager(DB_PATH, IMG_PATH, max_db_storage=Config_Object['max_db_storage'], max_img_storage=Config_Object['max_img_storage'])
 RR = Region_Repairer(UI_DTHandler, iou_thresh=IoU_THRESH, update_master=True)
 REC_Handler = Recognizor_Handler(RECOGNIZE_DICT, rec_handler=UI_RNHandler, dev_handler=None, det_handler=UI_DTHandler, img_handler=IMG_Handler)
 DET_Handler = Detector_Handler(DETECT_DICT, det_handler=UI_DTHandler, master_handler=UI_DBHandler, img_handler=IMG_Handler, hooked_taskque=REC_Handler, region_repairer=RR)
@@ -43,39 +43,43 @@ def status():
     # get status API
     #data = {'memory':50, 'memory_db':10, 'memory_img':60, 'cpu':12, 'gpu':70}
     data = UI_SManager.get_status()
-    print("OK!")
     return jsonify(data)
 
-@UI.route('/status/db/<filename>', methods=['GET', 'POST', 'DELETE'])
-def db_status(filename):
-    if request.method == 'POST' or request.method == 'GET':
-        # dump? DB
-        db_file = filename
-        db_path = os.path.join(DB_PATH, db_file)
-        return send_file(db_path)
+@UI.route('/status/db/<db_name>', methods=['GET', 'DELETE'])
+def db_status(db_name):
+    if request.method == 'GET':
+        dumped_db = UI_SManager.dump_db(db_name)
+        return send_file(dumped_db)
     elif request.method == 'DELETE':
         # empty db
         return 'OK'
 
-@UI.route('/status/imgs', methods=['GET', 'POST', 'DELETE'])
+@UI.route('/status/imgs', methods=['GET', 'DELETE'])
 def img_status():
-    if request.method == 'POST' or request.method == 'GET':
+    if request.method == 'GET':
         # zip img folder -> React-talaas arga zam oloh!
-        compressed_imgs = UI_SManager.compress_imgs()
-        return send_file(compressed_imgs, attachment_filename='images.zip', as_attachment=True)
+        zippedfile = UI_SManager.compress_imgs()
+        return send_file(zippedfile)
     elif request.method == 'DELETE':
         # empty img folder
+        UI_SManager.empty_imgs()
         return 'OK'
 
 @UI.route('/status/upload/master', methods=['POST'])
 def upload_master():
     # restore master.db and chmod 644
-    return 'OK'
+    data = {'updated':False}
+    if len(request.files) > 0:
+        master = request.files.to_dict()
+        master_content = master['file']
+        master_filename = master_content.filename
+        # Saved By master.zip
+        master_content.save(os.path.join('.', master_filename))
+        UI_DBHandler.disconnect()
+        data = UI_SManager.upload_master(master_filename)
+        UI_DBHandler.reconnect()
+    return jsonify(data)
 
-@UI.route('/status/upload/recognition', methods=['POST'])
-def upload_recognition():
-    # restore recognized.db and chmod 644
-    return 'Ok'
 #--------------------
 
 #------devices--------
