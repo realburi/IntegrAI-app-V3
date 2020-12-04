@@ -1,23 +1,33 @@
 #-*- coding:utf-8 -*-
 
-from PIL import Image
-import pyocr
-import pyocr.builders
-recognizor1_config = {'lang':'jpn', 'layout':6}
+from .model import  Model as OCRmodel
+from .tools import input_process, output_process
+from .utils import getChar, CTCLabelConverter
+from .config import model_cfg
+import torch
 
-def recognizor1_model():
-    tools = pyocr.get_available_tools()
-    if len(tools) == 0:
-        print("recognizer1 is not Available!")
-        return
-    else:
-        return tools[0]
+number = '0123456789'
+symbol  = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ '
+en_char = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+voc_txt = model_cfg['voc']
 
-def recognizor1_process(imgs, model, device='cpu', config=recognizor1_config):
-    results = []
-    for img in imgs:
-        if type(img).__name__ == 'ndarray':
-            img = Image.fromarray(img)
-        txt = model.image_to_string(img, lang=config['lang'], builder=pyocr.builders.TextBuilder(tesseract_layout=config['layout']))
-        results.append(txt)
-    return results
+ja_char = getChar(voc_txt)
+character = number + symbol + en_char + ja_char
+recognizor1_config = {'input_channel': 1, 'output_channel': 512, 'hidden_size': 512, 'num_class':len(character)+1}
+converter = CTCLabelConverter(character, {}, {})
+
+recognizor1_config['weight'] = model_cfg['weight']
+
+#imgs -> from a node
+def recognizor1_process(imgs, model, device, converter=converter):
+    input_tensors = input_process(imgs, device=device, imgH=64)
+    outputs = []
+    with torch.no_grad():
+        for input_tensor in input_tensors:
+            temp = model(input_tensor.unsqueeze(0))
+            output = temp.clone()
+            del temp
+            torch.cuda.empty_cache()
+            result = output_process(output, converter)[0]
+            outputs.append(result)
+    return outputs
