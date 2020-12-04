@@ -116,8 +116,8 @@ class Status_Manager(object):
         print('All files zipped successfully!')
         return filename
 
-    def empty_db(self):
-        pass
+    def empty_db(self, handler):
+        handler.delete('log', conditions={});
 
     def empty_imgs(self):
         for filepath in glob(os.path.join(self.img_folder, '*')):

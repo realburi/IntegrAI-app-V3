@@ -79,7 +79,9 @@ class DB_Handler(object):
         return self.commit(sql)
 
     def delete(self, table_name:str, conditions:dict):
-        sql = "DELETE FROM " + str(table_name) + " WHERE"
+        sql = "DELETE FROM " + str(table_name) + " "
+        if len(conditions) > 0:
+            sql += " WHERE "
         for i, column in enumerate(conditions):
             if i > 0:
                 sql += " AND "

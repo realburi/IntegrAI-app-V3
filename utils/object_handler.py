@@ -39,7 +39,7 @@ class Object_Handler(object):
                 "position":json.dumps([{"x1":r["x1"], "y1":r["y1"], "x2":r["x2"], "y2":r["y2"], "name":r["name"]} for r in datas])
                 })
         elif object_class != 0:# 1device to many objects to 1position
-            count = self.handler.count("objects", conditions={"deviceID":deviceID})[0][0]
+            count = self.master_handler.count("objects", conditions={"deviceID":deviceID})[0][0]
             print(len(datas), datas)
             objectID = deviceID+str(count+1) if datas['objectID'] is None else datas['objectID']
             object_datas.append({

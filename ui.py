@@ -51,7 +51,11 @@ def db_status(db_name):
         dumped_db = UI_SManager.dump_db(db_name)
         return send_file(dumped_db)
     elif request.method == 'DELETE':
-        # empty db
+        if 'det' in db_name:
+            UI_SManager.empty_db(UI_DTHandler)
+        elif 'rec' in db_name:
+            UI_SManager.empty_db(UI_RNHandler)
+        print("Clear {}".format(db_name))
         return 'OK'
 
 @UI.route('/status/imgs', methods=['GET', 'DELETE'])
