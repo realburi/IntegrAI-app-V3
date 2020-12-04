@@ -53,9 +53,35 @@ class Object_Handler(object):
         print("L:", len(datas))
         self.master_handler.add("objects", "objectID", object_datas)
         print("OBJECT REGISTERED!")
+        return objectID
+
+    def recover_position(self, objectID:str, position:dict):
+        """
+            position: {'x1':x1, 'y1':y1, 'x2':x2, 'y2':y2}
+        """
+        object = self.master_handler.get("objects", conditions={"objectID":objectID})
+        if len(object) > 0:
+            object = object[0]
+            self.master_handler.add("objects", "objectID", [{"objectID":objectID, "position":json.dumps(position)}])
+            print("Object {} | Recovered".format(objectID))
+
+    def set_object(self, objectID:str, object_content:dict):
+        """
+            Update only object_content
+        """
+        data = {'objectID':objectID, 'object_content':json.dumps(object_content)}
+        self.master_handler.add("objects", "objectID", [data])
+        print("Object {} | Set".format(objectID))
+
+    def delete_object(self, objectID:str, rec_handler:DB_Handler=None):
+        self.master_handler.delete("objects", conditions={"objectID":objectID})
+        if rec_handler is not None:
+            rec_handler.delete("log", conditions={"objectID":objectID})
+        print("Object {} | Delete".format(objectID))
 
     def update_objects(self, object_class:int, deviceID:str, contents:list):
         """
+            (Update only Positions)
             Register and Update? Master Coordinate -> Only for UI Upload Button
             INPUT:
                 object_class: Object Class

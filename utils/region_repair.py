@@ -163,9 +163,14 @@ class Region_Repairer(object):
         #group4_box = self.get_included_box(matched_regions+overlapped_regions+[registered_region]) if len(matched_regions) > 0 else [0, 0, 10000, 1]
         #group5_box = self.get_included_box(overlapped_regions+[registered_region])
         groups = [group1_box, group3_box]
+        size_diffs = [((g[2]-g[0]) - w)**2 + ((g[3]-g[1]) - h)**2 for g in groups]
         aspect_diffs = [abs((g[2]-g[0])/(g[3]-g[1]) - aspect) for g in groups]
-        print("ASPECTS:", aspect_diffs)
-        index = np.argmin(aspect_diffs)
+        print("ASPECT DIFFERENCE:", aspect_diffs, "SIZE DIFFERENCE:", size_diffs)
+        index_aspect = np.argmin(aspect_diffs)
+        index_size = np.argmin(size_diffs)
+
+        ### How to use index_aspect?
+        index = index_size
         return groups[index]
 
 

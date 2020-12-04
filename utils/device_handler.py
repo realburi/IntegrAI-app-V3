@@ -203,13 +203,14 @@ class Device_Handler(object):
     def get_candidates(self, deviceID:str, det_handler:DB_Handler):
         sql = "SELECT class, result FROM log WHERE id=(SELECT MAX(id) FROM log WHERE deviceID='{0}') AND deviceID='{0}';".format(deviceID)
         results = det_handler.run_custom_sql(sql)
-        register_objectIDs = [o['objectID'] for o in self.handler.get('objects', {'deviceID':deviceID})]
+        registered_objectIDs = [o['objectID'] for o in self.handler.get('objects', {'deviceID':deviceID})]
         datas = []
+        included_objects = []
         if len(results) > 0:
             object_class, result = results[0]
             result = json.loads(result)
             for object in result:
-                if object['objectID'] in register_objectIDs or object['objectID'] is None:
+                if object['objectID'] in registered_objectIDs or object['objectID'] is None:
                     datas.append({
                         'objectID':object['objectID'],
                         'name':object['name'],
@@ -220,6 +221,23 @@ class Device_Handler(object):
                         'y2':object['y2'],
                         'registered':object['registered'],
                     })
+                if object['objectID'] is not None:
+                    included_objects.append(object['objectID'])
+        not_included_registered_objects = [objectID for objectID in registered_objectIDs if objectID not in included_objects]
+        if len(not_included_registered_objects) > 0:
+            not_included_objects = [self.handler.get('objects', {'objectID':objectID})[0] for objectID in not_included_registered_objects]
+            for obj in not_included_objects:
+                obj['position'] = json.loads(obj['position'])
+                datas.append({
+                    'objectID':obj['objectID'],
+                    'name':obj['name'],
+                    'class':obj['class'],
+                    'x1':obj['position']['x1'],
+                    'y1':obj['position']['y1'],
+                    'x2':obj['position']['x2'],
+                    'y2':obj['position']['y2'],
+                    'registered':True
+                })
         return datas
 
 

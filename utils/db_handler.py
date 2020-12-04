@@ -85,7 +85,7 @@ class DB_Handler(object):
         for i, column in enumerate(conditions):
             if i > 0:
                 sql += " AND "
-            sql += " " + str(column) + "=" + "'{} '".format(conditions[column])
+            sql += " " + str(column) + "=" + "'{}' ".format(conditions[column])
         sql = sql[:-1] + ";"
         return self.commit(sql)
 

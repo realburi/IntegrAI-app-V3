@@ -109,12 +109,12 @@ def device_function(deviceID):
         # get data
         data = UI_DHandler.get_device(deviceID, det_handler=UI_DTHandler)
         return jsonify(data)
-    elif request == 'PUT':
+    elif request.method == 'PUT':
         data = request.json
         # update device
         UI_DHandler.set_device(data)
         return 'OK'
-    elif request == 'DELETE':
+    elif request.method == 'DELETE':
         # delete device
         UI_DHandler.delete_device(deviceID)
         return 'OK'
@@ -155,10 +155,17 @@ def objects_function():
         object_class = datas['class']
         deviceID = datas['deviceID']
         if len(datas["position"]) > 0:
-            UI_OHandler.register_object(object_class, deviceID, datas)
-        # save object -> objectID:None -> have to register
-        #objects = UI_DBHandler.get('objects', {'deviceID':deviceID})
-        return 'OK'
+            objectID = UI_OHandler.register_object(object_class, deviceID, datas)
+            return objectID
+        return "OK"
+
+@UI.route('/objects/recover', methods=['POST'])
+def set_object_position():
+    data = request.json
+    objectID = data['objectID']
+    position = data['position']
+    UI_OHandler.recover_position(objectID, position)
+    return "OK"
 
 @UI.route('/objects/recognition', methods=['POST'])
 def objects_recognition():
@@ -173,18 +180,16 @@ def objects_recognition():
 @UI.route('/objects/<objectID>', methods=['GET', 'PUT', 'DELETE'])
 def object_function(objectID):
     if request.method == 'GET':
-        # get data
-        #data = {'objectID':'1611', 'class':1}
-        #data = UI_DBHandler.get('objects', {'objectID':objectID})
-        #data = data[0] if len(data) > 0 else []
         data = UI_OHandler.get_object(objectID, UI_DTHandler)
         return jsonify(data)
-    elif request == 'PUT':
+    elif request.method == 'PUT':
         data = request.json
         # update object
+        UI_OHandler.set_object(objectID, data)
         return 'OK'
-    elif request == 'DELETE':
+    elif request.method == 'DELETE':
         # delete object
+        UI_OHandler.delete_object(objectID, rec_handler=UI_RNHandler)
         return 'OK'
 
 @UI.route('/value', methods=['POST'])

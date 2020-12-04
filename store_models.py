@@ -15,7 +15,7 @@ detector1 = CRAFT(device=device).eval()
 detector1.load(detector1_config['weights'])
 print("Detector1 OK!")
 
-recognizor1 = recognizor1_model()
+recognizor1 = OCRmodel(**recognizor1_config).to(device).eval()
 print("Recognizor1 OK!")
 
 recognizor2 = Img2Seq_model(voc=get_digits(), maxlen=recognizor2_config['maxlen'], device=device).eval()
