@@ -64,6 +64,8 @@ class Object_Handler(object):
             object = object[0]
             self.master_handler.add("objects", "objectID", [{"objectID":objectID, "position":json.dumps(position)}])
             print("Object {} | Recovered".format(objectID))
+            return {"success":True}
+        return {"success":False}
 
     def set_object(self, objectID:str, object_content:dict):
         """
@@ -72,12 +74,15 @@ class Object_Handler(object):
         data = {'objectID':objectID, 'object_content':json.dumps(object_content)}
         self.master_handler.add("objects", "objectID", [data])
         print("Object {} | Set".format(objectID))
+        return {"success":True}
 
     def delete_object(self, objectID:str, rec_handler:DB_Handler=None):
         self.master_handler.delete("objects", conditions={"objectID":objectID})
         if rec_handler is not None:
             rec_handler.delete("log", conditions={"objectID":objectID})
-        print("Object {} | Delete".format(objectID))
+            print("Object {} | Delete".format(objectID))
+            return {"success":True}
+        return {"success":False}
 
     def update_objects(self, object_class:int, deviceID:str, contents:list):
         """
@@ -97,4 +102,4 @@ class Object_Handler(object):
             object_datas = {"objectID":objectID, "position":json.dumps(positions)}
             self.master_handler.add("objects", "objectID", [object_datas])
             print("deviceID: {} | Uploaded".format(deviceID))
-        return 'OK'
+        return {"success":True}

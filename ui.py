@@ -112,12 +112,13 @@ def device_function(deviceID):
     elif request.method == 'PUT':
         data = request.json
         # update device
-        UI_DHandler.set_device(data)
-        return 'OK'
+        print(data)
+        res = UI_DHandler.set_device(deviceID, data)
+        return jsonify(res)
     elif request.method == 'DELETE':
         # delete device
-        UI_DHandler.delete_device(deviceID)
-        return 'OK'
+        res = UI_DHandler.delete_device(deviceID)
+        return jsonify(res)
 
 @UI.route('/captures/<deviceID>')
 def captures(deviceID):
@@ -164,8 +165,8 @@ def set_object_position():
     data = request.json
     objectID = data['objectID']
     position = data['position']
-    UI_OHandler.recover_position(objectID, position)
-    return "OK"
+    res = UI_OHandler.recover_position(objectID, position)
+    return jsonify(res)
 
 @UI.route('/objects/recognition', methods=['POST'])
 def objects_recognition():
@@ -173,9 +174,9 @@ def objects_recognition():
     print("POST RECOGNITION:", datas)
     deviceID = datas['deviceID']
     object_class = datas['class']
-    UI_OHandler.update_objects(object_class, deviceID, datas['position'])
+    res = UI_OHandler.update_objects(object_class, deviceID, datas['position'])
     # TODO: Run recognizor engine
-    return 'OK'
+    return jsonify(res)
 
 @UI.route('/objects/<objectID>', methods=['GET', 'PUT', 'DELETE'])
 def object_function(objectID):
@@ -185,12 +186,12 @@ def object_function(objectID):
     elif request.method == 'PUT':
         data = request.json
         # update object
-        UI_OHandler.set_object(objectID, data)
-        return 'OK'
+        res = UI_OHandler.set_object(objectID, data)
+        return jsonify(res)
     elif request.method == 'DELETE':
         # delete object
-        UI_OHandler.delete_object(objectID, rec_handler=UI_RNHandler)
-        return 'OK'
+        res = UI_OHandler.delete_object(objectID, rec_handler=UI_RNHandler)
+        return jsonify(res)
 
 @UI.route('/value', methods=['POST'])
 def send_values():
@@ -207,10 +208,11 @@ def send_values():
 def value_function(valueID):
     if request.method == 'PUT':
         data = request.json
-        return 'OK?' # or send datas
+        res = UI_VHandler.set_value(valueID, data)
+        return jsonify(res)
     else:
-        UI_VHandler.delete_value(valueID)
-        return 'OK'
+        res = UI_VHandler.delete_value(valueID)
+        return jsonify(res)
 
 #--------------------
 

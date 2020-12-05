@@ -111,6 +111,7 @@ class Device_Handler(object):
         # set connector
             self.connectors[deviceID].period = period
             self.connectors[deviceID].related_devices = related_connectors
+        return {"success":True}
 
     def update_related_devices(self, deviceID, new_related_devices):
         """
@@ -196,6 +197,7 @@ class Device_Handler(object):
         del self.connectors[deviceID]
         del self.threads[deviceID]
         # DELETE self.connectors[deviceID]
+        return {"success":True}
 
     def count_content_objects(self, candidates:list):
         return len([c for c in candidates if c['registered']])

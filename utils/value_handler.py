@@ -52,13 +52,17 @@ class Value_Handler(object):
         """
             INPUT:
                 valueID: valueID
-                data: {}
+                data: {'data':{'result':[...], 'date':...}}
         """
-        return
+        _data = {'valueID':valueID, 'result':json.dumps(data['data']['result'])}
+        self.rec_handler.add("log", "valueID", [_data])
+        print("valueID:{} | Value Edited".format(valueID))
+        return {'success':True}
 
     def delete_value(self, valueID):
         self.rec_handler.delete('log', {'valueID':valueID})
         print("valueID:{} | Deleted".format(valueID))
+        return {'success':True}
 
 if __name__ == '__main__':
     from pprint import pprint
