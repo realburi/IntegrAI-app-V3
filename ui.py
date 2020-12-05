@@ -11,6 +11,7 @@ import os
 ROUTER = Config_Object['router']
 DB_PATH = Config_Object['db_path']
 IMG_PATH = Config_Object['img_path']
+INFO_PATH = Config_Object['info_path']
 IoU_THRESH = Config_Object['iou_thresh']
 # templates, static -d react iin js uud orj irne,    UI_PoolManager-> device, AI engine ruu access hiihiin tuld
 IMG_Handler = ImageBankHandler(IMG_PATH)
@@ -217,10 +218,10 @@ def value_function(valueID):
 #--------------------
 
 #------infos---------
-@UI.route('/infos')
-def send_infos():
-    filename = ''
-    return send_file(filename)
+@UI.route('/infos/<filename>')
+def send_infos(filename):
+    filepath = os.path.join(INFO_PATH, filename)
+    return send_file(filepath)
 #--------------------
 
 
