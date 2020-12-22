@@ -65,6 +65,9 @@ class Value_Handler(object):
         if object_class == 0:
             new_samples = []
             for sample in samples:
+                if sample['code'] == 'None':
+                    new_samples.append(sample)
+                    continue
                 sql = "SELECT objectID, result FROM log WHERE code='{0}' AND objectID != '{1}'".format(sample['code'], objectID)
                 related_samples = self.rec_handler.run_custom_sql(sql)
                 if len(related_samples) > 0:

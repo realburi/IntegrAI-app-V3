@@ -34,6 +34,7 @@ class Region_Repairer(object):
             master: [X, Y]
             result: [[x1, y1, x2, y2, ...], [x1, y1, x2, y2, ...], ...]
         """
+        print("Region Repairer | Transforming")
         X, Y = master
         distances = [r[0]**2 + r[1]**2 for r in result]
         index = np.argmin(distances)
@@ -165,7 +166,7 @@ class Region_Repairer(object):
         group3_box = self.get_included_box(matched_regions+overlapped_regions)
         #group4_box = self.get_included_box(matched_regions+overlapped_regions+[registered_region]) if len(matched_regions) > 0 else [0, 0, 10000, 1]
         #group5_box = self.get_included_box(overlapped_regions+[registered_region])
-        groups = [group1_box, group3_box]
+        groups = [group1_box, group3_box] if object_class != 0 else [group1_box]
         size_diffs = [((g[2]-g[0]) - w)**2 + ((g[3]-g[1]) - h)**2 for g in groups]
         aspect_diffs = [abs((g[2]-g[0])/(g[3]-g[1]) - aspect) for g in groups]
         print("ASPECT DIFFERENCE:", aspect_diffs, "SIZE DIFFERENCE:", size_diffs)
@@ -173,7 +174,7 @@ class Region_Repairer(object):
         index_size = np.argmin(size_diffs)
 
         if object_class != 0:
-            ### How to use index_aspect?
+        ### How to use index_aspect?
             index = index_size
         else:
             index = index_aspect

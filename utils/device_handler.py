@@ -203,6 +203,11 @@ class Device_Handler(object):
         return len([c for c in candidates if c['registered']])
 
     def get_candidates(self, deviceID:str, det_handler:DB_Handler):
+        """
+            1. get latest detected candidates
+            2. get registered objects
+            3. get not registered included objects
+        """
         sql = "SELECT class, result FROM log WHERE id=(SELECT MAX(id) FROM log WHERE deviceID='{0}') AND deviceID='{0}';".format(deviceID)
         results = det_handler.run_custom_sql(sql)
         registered_objectIDs = [o['objectID'] for o in self.handler.get('objects', {'deviceID':deviceID})]
@@ -229,8 +234,8 @@ class Device_Handler(object):
         if len(not_included_registered_objects) > 0:
             not_included_objects = [self.handler.get('objects', {'objectID':objectID})[0] for objectID in not_included_registered_objects]
             for obj in not_included_objects:
-                obj['position'] = json.loads(obj['position'])
-                if len(obj['position']) > 0:
+                obj['position'] = json.loads(obj['position']) if isinstance(obj['position'], str) else obj['position']
+                if len(obj['position']) > 0 and obj['class'] != 0: # for object_class != 0
                     datas.append({
                         'objectID':obj['objectID'],
                         'name':obj['name'],
@@ -241,6 +246,18 @@ class Device_Handler(object):
                         'y2':obj['position']['y2'],
                         'registered':True
                     })
+                elif len(obj['position']) > 0 and obj['class'] == 0: # for object_class = 0
+                    for position in obj['position']:
+                        datas.append({
+                            'objectID':obj['objectID'],
+                            'name':obj['name'],
+                            'class':obj['class'],
+                            'x1':position['x1'],
+                            'y1':position['y1'],
+                            'x2':position['x2'],
+                            'y2':position['y2'],
+                            'registered':True
+                        })
         return datas
 
 
