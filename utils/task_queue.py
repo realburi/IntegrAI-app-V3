@@ -112,7 +112,7 @@ class Recognizor_Handler(object):
         objects = self.dev_handler.get_candidates(deviceID, self.det_handler)
         img_regions, datas = [], []
         for object in objects:
-            if object['objectID'] is not None and object['registered']:
+            if object['objectID'] is not None and object['registered'] and len(object) > 0:
                 x1, y1 = int(W*object['x1']), int(H*object['y1'])
                 x2, y2 = int(W*object['x2']), int(H*object['y2'])
                 img_regions.append(img[y1:y2+1, x1:x2+1, :])
@@ -171,12 +171,12 @@ class Recognizor_Handler(object):
             outputs = self.recognize_config[object_class]['process'](regions, self.recognize_config[object_class]['model'], device=self.device)
             _imgfile = imgfile.split('/')[-1]
             code = self.get_code(deviceID)
-            if object_class == 0: #
+            if object_class == 0 and len(datas) > 0: #
                 valueID = self.get_valueid()
                 res = [{"name":d['name'], "value":o} for o, d in zip(outputs, datas)]
                 result = {"objectID":datas[0]['objectID'], "class":object_class, "valueID":valueID, "result":json.dumps(res), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}
                 results.append(result)
-            elif object_class is not None:
+            elif object_class is not None and len(datas) > 0:
                 for output, data in zip(outputs, datas):
                     valueID = self.get_valueid()
                     result = {"objectID":data['objectID'], "class":object_class, "valueID":valueID, "result":json.dumps({"value": output}), "imgfile":_imgfile, "code":code, 'timestamp':self.get_timestamp()}

@@ -230,16 +230,17 @@ class Device_Handler(object):
             not_included_objects = [self.handler.get('objects', {'objectID':objectID})[0] for objectID in not_included_registered_objects]
             for obj in not_included_objects:
                 obj['position'] = json.loads(obj['position'])
-                datas.append({
-                    'objectID':obj['objectID'],
-                    'name':obj['name'],
-                    'class':obj['class'],
-                    'x1':obj['position']['x1'],
-                    'y1':obj['position']['y1'],
-                    'x2':obj['position']['x2'],
-                    'y2':obj['position']['y2'],
-                    'registered':True
-                })
+                if len(obj['position']) > 0:
+                    datas.append({
+                        'objectID':obj['objectID'],
+                        'name':obj['name'],
+                        'class':obj['class'],
+                        'x1':obj['position']['x1'],
+                        'y1':obj['position']['y1'],
+                        'x2':obj['position']['x2'],
+                        'y2':obj['position']['y2'],
+                        'registered':True
+                    })
         return datas
 
 

@@ -92,13 +92,16 @@ class DB_Handler(object):
     def run_custom_sql(self, sql):
         return self.session(sql)
 
-    def add(self, table_name:str, key:str, datas:list):
+    def add(self, table_name:str, key:str, datas:list, hard:bool=False):
         output = {'inserted':0, 'updated':0}
         for data in datas:
             KEY = data[key]
             count = int(self.count(table_name, {key:KEY})[0][0])
             if count == 0:
-                self.insert(table_name, data)
+                if not hard:
+                    self.insert(table_name, data)
+                else:
+                    self.must_insert(table_name, data)
                 output['inserted'] += 1
             else:
                 self.update(table_name, data, {key:KEY})

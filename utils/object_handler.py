@@ -99,7 +99,8 @@ class Object_Handler(object):
             positions = []
             for r in contents:
                 positions.append({"x1":r["x1"], "y1":r["y1"], "x2":r["x2"], "y2":r["y2"], "name":r["name"]})
-            object_datas = {"objectID":objectID, "position":json.dumps(positions)}
-            self.master_handler.add("objects", "objectID", [object_datas])
+            print("objectID: {}".format(objectID), "| POSITIONS:", positions)
+            object_datas = {"objectID":objectID, "deviceID":deviceID, "class":object_class ,"position":json.dumps(positions)}
+            self.master_handler.add("objects", "objectID", [object_datas], hard=False)
             print("deviceID: {} | Uploaded".format(deviceID))
         return {"success":True}

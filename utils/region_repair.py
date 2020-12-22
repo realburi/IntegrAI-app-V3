@@ -96,7 +96,7 @@ class Region_Repairer(object):
                 matched_regions = [result[j] for j in matched_indexes]
                 overlapped_regions = [result[j] for j in overlapped_indexes]
                 #matched_regions.append(rpos)
-                new_x1, new_y1, new_x2, new_y2 = self.repair(rpos, matched_regions, overlapped_regions)
+                new_x1, new_y1, new_x2, new_y2 = self.repair(rpos, matched_regions, overlapped_regions, object_class=object_class)
                 candidates.append({
                     'x1':new_x1,
                     'y1':new_y1,
@@ -149,10 +149,13 @@ class Region_Repairer(object):
         return x1, y1, x2, y2
 
 
-    def repair(self, registered_region, matched_regions, overlapped_regions):
+    def repair(self, registered_region, matched_regions, overlapped_regions, object_class=1):
         """
             registered_region:[x1, y1, x2, y2]
             other regions: [[x1, y1, x2, y2, ...], [x1, y1, x2, y2, ...], ...]
+
+            if object_class == 0 -> match by aspect?
+            else -> match by size?
         """
         w = abs(registered_region[2]-registered_region[0])
         h = abs(registered_region[3]-registered_region[1])
@@ -169,8 +172,11 @@ class Region_Repairer(object):
         index_aspect = np.argmin(aspect_diffs)
         index_size = np.argmin(size_diffs)
 
-        ### How to use index_aspect?
-        index = index_size
+        if object_class != 0:
+            ### How to use index_aspect?
+            index = index_size
+        else:
+            index = index_aspect
         return groups[index]
 
 
